@@ -1,4 +1,8 @@
-const { crearServicioReservas } = require("./servicios/reservas");
+const { crearServicioReservasMongo } = require("./servicios/reservas-mongo");
+const { 
+  conectarBaseDatos,
+  desconectarBaseDatos
+} = require("./config/base-datos");
 const { crearApp } = require("./app");
 const { leerConfiguracion } = require("../src/config/entorno");
 
@@ -7,51 +11,12 @@ const { leerConfiguracion } = require("../src/config/entorno");
 const salasPermitidas = ["Sala Norte", "Sala Sur", "Sala Multimedia"];
 const turnosPermitidos = ["Mañana", "Tarde", "Noche"];
 
-// Datos iniciales en memoria. Las altas nuevas se agregan a este arreglo y se pierden al reiniciar el proceso
-const reservasIniciales = [
-  {
-    id: 1,
-    estudiante: "Mariela Gómez",
-    email: "marigomez@gmail.com",
-    sala: "Sala Norte",
-    fecha: "2026-09-25",
-    turno: "Mañana",
-    personas: 4,
-  },
-  {
-    id: 2,
-    estudiante: "Marcos Batallán",
-    email: "marcosbat@gmail.com",
-    sala: "Sala Sur",
-    fecha: "2026-09-24",
-    turno: "Tarde",
-    personas: 6,
-  },
-  {
-    id: 3,
-    estudiante: "Juan Cruz López",
-    email: "jclopez@gmail.com",
-    sala: "Sala Multimedia",
-    fecha: "2026-09-25",
-    turno: "Noche",
-    personas: 3,
-  },
-  {
-    id: 4,
-    estudiante: "María Rodriguez",
-    email: "mrodriguez@gmail.com",
-    sala: "Sala Norte",
-    fecha: "2026-09-25",
-    turno: "Tarde",
-    personas: 5,
-  },
-];
-
 async function main() {
   const { puerto, formatoRegistro } = leerConfiguracion();
 
-  const servicioReservas = crearServicioReservas({
-    reservasIniciales,
+  await conectarBaseDatos();
+
+  const servicioReservas = crearServicioReservasMongo({
     salasPermitidas,
     turnosPermitidos,
   });
@@ -61,9 +26,38 @@ async function main() {
   app.listen(puerto, () => {
     console.log(`Aplicación escuchando en http://localhost:${puerto}`);
   });
+
+  let cerrando = false;
+  function cerrar () {
+    if (cerrando) return;
+    cerrando = true;
+    servidor.close(async () => {
+      try {
+        await desconectarBaseDatos();
+      } catch (error) {
+        console.error("Error al cerrar:", error.name, "-", error.message);
+        process.exitCode = 1;
+      }
+    });
+  }
+  process.once ("SIGINT", cerrar);
+  process.once ("SIGTERM", cerrar);
+  servidor.on("error", (error) => {
+    console.error("No se pudo escuchar el puerto:", error.code, "-", error.message);
+    process.exitCode = 1;
+    desconectarBaseDatos().catch((fallo) => {
+      console.error("Error al cerrar:", fallo.name, "-", fallo.message);
+    });
+  });
 }
 
-main().catch((error) => {
-  console.error("No se pudo iniciar el servidor", error);
+main().catch(async (error) => {
+  console.error("No se pudo iniciar la aplicación:", error.name, "-", error.message);
+  console.error("Revisar entorno, DNS, red, acceso de Atlas y puerto.");
   process.exitCode = 1;
+  try {
+    await desconectarBaseDatos();
+  } catch (fallo) {
+    console.error("Error al cerrar:", fallo.name, "-", fallo.message);
+  }
 });

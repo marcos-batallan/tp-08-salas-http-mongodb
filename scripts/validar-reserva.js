@@ -7,7 +7,7 @@ async function main() {
     sala: "Sala Sur",
     fecha: new Date(),
     turno: "Noche",
-    personas: "cuatro",
+    personas: 4,
   });
 
   await reserva.validate();

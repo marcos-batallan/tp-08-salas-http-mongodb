@@ -10,16 +10,55 @@ function crearValidadorReserva(servicioReservas) {
     const { salasPermitidas, turnosPermitidos } =
       servicioReservas.obtenerOpciones();
 
-    const cuerpo = req.body || {};
+    const valores = req.body ?? {};
 
-    const valores = {
-      estudiante: String(cuerpo.estudiante ?? "").trim(),
-      email: String(cuerpo.email ?? "").trim(),
-      sala: String(cuerpo.sala ?? "").trim(),
-      fecha: String(cuerpo.fecha ?? "").trim(),
-      turno: String(cuerpo.turno ?? "").trim(),
-      personas: cuerpo.personas,
+    const estudiante = 
+      typeof valores.estudiante === "string" ? valores.estudiante.trim() : "";
+    const email =
+      typeof valores.email === "string" ? valores.email.trim() : "";
+    const sala =
+      typeof valores.sala === "string" ? valores.sala.trim() : "";
+    const fecha =
+      typeof valores.fecha === "string" ? valores.fecha.trim() : "";
+    const turno =
+      typeof valores.turno === "string" ? valores.turno.trim() : "";
+    const personasRecibido = valores.persona;
+    const tipoPersonasValido =
+      typeof personasRecibido === "number" ||
+      (typeof personasRecibido === "string" && personasRecibido.trim() !== "");
+    const personas = tipoPersonasValido ? Number(personasRecibido) : NaN;
+
+    if (
+      !estudiante ||
+      !email ||
+      !sala ||
+      !fecha ||
+      !turno ||
+      !Number.isFinite(personas) ||
+      personas < 1 ||
+      personas > 6
+    ) {
+      if (req.baseUrl === "/api/reservas") {
+        return res.satatus(400).json({
+          error: "Completa los campos con con una cantidad de personas entre 1 y 6",
+        });
+      }
+      return res.status(400).render("reservas/nueva", {
+        titulo: "Nueva reserva",
+        error: "Completa los campos con con una cantidad de personas entre 1 y 6",
+        valores,
+      });
+    }
+    req.reservaValidada = { 
+      estudiante,
+      email,
+      sala,
+      fecha,
+      turno,
+      personas
     };
+
+    next();
 
     const personasNumero = Number(valores.personas);
 
