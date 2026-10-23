@@ -8,47 +8,62 @@ const {
   medirDuracion,
 } = require("./middleware/solicitudes");
 const { crearValidadorReserva } = require("./middleware/reservas");
+const { crearManejadorErrores } = require("./middleware/errores");
 const { crearControladorReservas } = require("./controladores/reservas");
 const { crearRouterReservas } = require("./rutas/reservas");
+const { crearRouterReservasApi } = require("./rutas/reservas-api");
 
 function crearApp({ servicioReservas, formatoRegistro }) {
   const app = express();
+  const controlador = crearControladorReservas(servicioReservas);
   const validarReserva = crearValidadorReserva(servicioReservas);
-  const controladorReservas = crearControladorReservas(servicioReservas);
-  // --- Router de reservas ---
-  const reservasRouter = crearRouterReservas(
-    controladorReservas,
-    validarReserva,
-  );
 
   app.set("view engine", "ejs");
   app.set("views", path.join(__dirname, "..", "views"));
   app.set("layout", "layouts/main");
 
-  // --- Pipeline global ---
-  app.use(morgan(formatoRegistro)); // Middleware de terceros: registra cada solicitud en consola.
-  app.use(crearIdentificadorSolicitud()); // Middleware personalizado global #1.
-  app.use(medirDuracion); // Middleware personalizado global #2.
-  app.use(expressLayouts); // Habilita el layout principal para las vistas EJS.
-  app.use(express.static(path.join(__dirname, "..", "public"))); // Recursos estáticos incorporados.
-  app.use(express.urlencoded({ extended: true })); // Parser incorporado para formularios.
-  app.use(express.json()); // Parser incorporado para JSON (no lo usa el formulario, pero queda disponible).
+  app.use(morgan(formatoRegistro));
+  app.use(crearIdentificadorSolicitud());
+  app.use(medirDuracion);
+  app.use(expressLayouts);
+  app.use(express.static(path.join(__dirname, "..", "public")));
+  app.use(express.urlencoded({ extended: false }));
+  app.use(express.json());
 
-  // --- Rutas de aplicación ---
   app.get("/", (req, res) => {
     res.render("inicio", { titulo: "Inicio" });
   });
-  app.get("/estado", controladorReservas.mostrarEstado);
 
-  app.use("/reservas", reservasRouter);
+  app.get("/estado", controlador.mostrarEstado);
 
-  // --- Página 404: al final de todo el pipeline ---
+  app.use("/api/reservas", crearRouterReservasApi(controlador, validarReserva));
+
+  app.use("/reservas", crearRouterReservas(controlador, validarReserva));
+
   app.use((req, res) => {
-    res.status(404).render("no-encontrado", {
+    if (req.path.startsWith("/api/")) {
+      return res.status(404).json({
+        error: "Ruta no encontrada.",
+      });
+    }
+
+    return res.status(404).render("no-encontrado", {
       titulo: "Página no encontrada",
       mensaje: "La dirección solicitada no existe.",
     });
   });
+
+  const { salasPermitidas, turnosPermitidos } =
+    servicioReservas.obtenerOpciones();
+
+  app.use(
+    crearManejadorErrores({
+      vistaFormulario: "reservas/nueva",
+      tituloFormulario: "Nueva reserva",
+      salasPermitidas,
+      turnosPermitidos,
+    }),
+  );
 
   return app;
 }

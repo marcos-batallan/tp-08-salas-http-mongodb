@@ -12,7 +12,12 @@ async function main() {
   }
 }
 main().catch((error) => {
-  console.error("No se pudo completar la conexión:", error.name);
+  console.error(
+    "No se pudo completar la conexión:",
+    error.name,
+    "-",
+    error.message,
+  );
 
   const codigosDns = [
     "ECONNREFUSED",
